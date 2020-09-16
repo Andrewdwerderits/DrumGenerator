@@ -20,7 +20,7 @@ class RandomizerEngine {
 
         const result: T[] = [];
         
-        previousItems.map((item) => {
+        previousItems.forEach((item) => {
             let added = false;
             while (!added) {
                 const randomItem = getRandomItemSelection(itemsToAdd);

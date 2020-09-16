@@ -80,6 +80,9 @@ const addStickingToMeasure = (measure: string[], maxConsecutiveKicks: number) =>
     };
     
     const insertionFunc = (note: string, sticking: string) => {
+        if (note.includes('z') || note.includes('f,')) {
+            return `${note}`
+        }
         return `"${sticking}"${note}`
     };
 
