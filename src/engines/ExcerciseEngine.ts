@@ -1,192 +1,365 @@
 ﻿import GenerateSheetMusicConfig from '../models/GenerateSheetMusicConfig';
 import RandomizerEngine from './RandomizerEngine';
+import Measure from '../models/Measure';
+import ENoteTypes from "../Enums/ENoteTypes";
+import ENotePlacement from "../Enums/ENotePlacement";
+import ValidationEngine from "./ValidationEngine";
+import Note from "../models/Note";
+import Header from "../models/Header";
+import EStickings from "../Enums/EStickings";
+import EAccents from "../Enums/EAccents";
 
 class ExerciseEngine {
     // Main entry point All configurations should be passed in here
     public static generateNewSheetMusic = (config: GenerateSheetMusicConfig) => {
-        const header = generateHeader(config.id);
-        const measure = generateMeasure(config.subdivision, config.maxConsecutiveKicks, config.maxNoteDuration, config.maxRestDuration);
-        const measureWithSticking = addStickingToMeasure(measure, config.maxConsecutiveKicks);
-        const measureWithAccents = addAccentsToMeasure(measureWithSticking, config.maxNumberOfAccents);
-        const formattedResult = format(measureWithAccents);
+        const header = generateHeaderString(config.header);
+        const measure = generateMeasure(config);
+        // const measureWithSticking = addStickingToMeasure(measure, config.maxConsecutiveKicks);
+        addAccentsToMeasure(measure, config);
+        const formattedResult = format(measure);
         return `${header}${formattedResult}`
     };
 }
 
-const generateHeader = (id: number) => {
-    return `X:1\nT:Super Awesome Exercise ${id}\nM:4/4\nC:Trad.\nK:C\nL:1/16\n`
+const generateHeaderString = (header: Header) => {
+    return `X:1\nT:${header.title}\nM:${header.meter}\nC:${header.composer}\nK:${header.key}\nL:${header.translateLengthToFractionString()}\n`
 };
 
-const format = (patternArray: string[]) => {
+const format = (measure: Measure) => {
+
     let resultString = '';
-    let sequenceLength = 0;
-    
     // Add in the note groupings, add a space every 4 units
-    patternArray.forEach((annotatedNote, index) => {
-        // @ts-ignore
-        const duration = annotatedNote.match(/\d/g).join("");
-        sequenceLength += parseInt(duration);
-        if (sequenceLength > 4) {
-            resultString = `${resultString} ${annotatedNote}`;
-            sequenceLength = sequenceLength % 4;
-        } else {
-            resultString = `${resultString}${annotatedNote}`
+    measure.notes.forEach((note, index) => {
+        let noteString = index % 4 === 0 ? ' ' : '';
+        if (note.sticking === EStickings.Left) {
+            noteString = noteString + `"L"`;
         }
+        if (note.sticking === EStickings.Right) {
+            noteString = noteString + `"R"`;
+        }
+        if (note.accent === EAccents.accented) {
+            noteString = noteString + `!>!`;
+        }
+        if (note.noteType === ENoteTypes.snare) {
+            noteString = noteString + 'c';
+        }
+        if (note.noteType === ENoteTypes.kick) {
+            noteString = noteString + 'f,';
+        }
+        if (note.noteType === ENoteTypes.rest) {
+            noteString = noteString + 'z';
+        }
+        resultString += noteString;
     });
     return `|:${resultString}:|`
 };
+//
+// const addAccentsToMeasure = (measure: string[], accentCount: number) => {
+//     const accentOptions = ['', '!>!'];
+//    
+//     if (accentCount === 0) {
+//         return measure;
+//     } 
+//    
+//     const constraintFunc = (possibleSequence: string[]) => {
+//         let passesConstraint = true;
+//         possibleSequence.forEach((item) => {
+//             if (item.includes('!>!') && (item.includes('f,') || item.includes('z'))) {
+//                 passesConstraint = false;
+//             }
+//         });
+//         return passesConstraint;
+//     };
+//    
+//     const insertionFunc = (note: string, accent: string) => {
+//         const splitNote = note.split("\"");
+//         if (splitNote.length === 1) {
+//             return `${accent}${splitNote[0]}`
+//         } else if (splitNote.length === 3) {
+//             return `"${splitNote[1]}"${accent}${splitNote[2]}`;
+//         } else {
+//             throw new Error ("WTF KIND OF NOTE ARE YOU TRYING TO ACCENT?");
+//         }
+//     };
+//    
+//     return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, accentOptions, constraintFunc, insertionFunc);
+// };
+//
+// const addStickingToMeasure = (measure: string[], maxConsecutiveKicks: number) => {
+//     const stickingOptions = ['R', 'L'];
+//    
+//     if (maxConsecutiveKicks > 0) {
+//         return measure;
+//     }
+//    
+//     const constraintFunc = (possibleSequence: string[]) => {
+//         return doesNotExceedStrokeCount(possibleSequence, 2, 'R') &&
+//             doesNotExceedStrokeCount(possibleSequence, 2, 'L');
+//     };
+//    
+//     const insertionFunc = (note: string, sticking: string) => {
+//         if (note.includes('z') || note.includes('f,')) {
+//             return `${note}`
+//         }
+//         return `"${sticking}"${note}`
+//     };
+//
+//     return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, stickingOptions, constraintFunc, insertionFunc)
+// };
 
-const addAccentsToMeasure = (measure: string[], accentCount: number) => {
-    const accentOptions = ['', '!>!'];
-    
-    if (accentCount === 0) {
+const addAccentsToMeasure = (measure: Measure, config: GenerateSheetMusicConfig): Measure => {
+    config.mandatoryAccentPlacements.forEach((placement) => {
+        const note = measure.notes[mapNotePlacementToIndex(placement)];
+        if (note.noteType === ENoteTypes.snare){
+            note.accent = EAccents.accented;
+        }
+    });
+
+    if (config.accentNoteCount === 0) {
         return measure;
-    } 
+    }
+
+    let count = config.accentNoteCount - config.mandatoryAccentPlacements.length;
+    let availableSnares = measure.notes.filter((note) => {
+        return note.noteType === ENoteTypes.snare;
+    });
     
-    const constraintFunc = (possibleSequence: string[]) => {
-        let passesConstraint = true;
-        possibleSequence.forEach((item) => {
-            if (item.includes('!>!') && (item.includes('f,') || item.includes('z'))) {
-                passesConstraint = false;
-            }
-        });
-        return passesConstraint;
-    };
+    count = count > availableSnares.length ? availableSnares.length : count;
     
-    const insertionFunc = (note: string, accent: string) => {
-        const splitNote = note.split("\"");
-        if (splitNote.length === 1) {
-            return `${accent}${splitNote[0]}`
-        } else if (splitNote.length === 3) {
-            return `"${splitNote[1]}"${accent}${splitNote[2]}`;
+    if (config.accentNoteCountEnabled) {
+        addNoteCountToMeasure(measure, config,null, EAccents.accented, null, randomValidUnsetAccent, count);
+    }
+    
+    return measure;
+};
+
+const firstUnsetNoteType = (measure: Measure, config: GenerateSheetMusicConfig): Note => {
+    let result = measure.notes.find((note) => {
+        return note.noteType === ENoteTypes.none;
+    });
+    
+    if (!result) {
+        throw Error("WELKJRWELJ");
+    }
+    return result;
+};
+
+const firstUnsetStickings = (measure: Measure): Note => {
+    let result = measure.notes.find((note) => {
+        return note.sticking === EStickings.None;
+    });
+
+    if (!result) {
+        throw Error("WELKJRWELJ");
+    }
+    return result;
+};
+
+const randomValidUnsetAccent = (measure: Measure, config: GenerateSheetMusicConfig): Note => {
+    const notesChecked: Note[] = [];
+    
+    while(notesChecked.length < measure.notes.length) {
+        const randomIndex = RandomizerEngine.randomNumberInRange(0, measure.notes.length-1);
+        const note = measure.notes[randomIndex];
+        
+        if (notesChecked.includes(note)) {
+            continue;
+        }
+        
+        if (note.noteType === ENoteTypes.rest || note.noteType === ENoteTypes.kick || note.noteType == ENoteTypes.none || note.accent === EAccents.accented) {
+            notesChecked.push(note);
+            continue;
+        }
+        
+        const isAccentedNote = (note: Note): boolean => {
+            return note.accent === EAccents.accented;
+        };
+        
+        note.accent = EAccents.accented;
+        
+        if (!noteVarietyDoesNotExceedConsecutiveCount(measure, config.maxConsecutiveAccents, isAccentedNote)) {
+            note.accent = EAccents.notAccented;
+            notesChecked.push(note);
         } else {
-            throw new Error ("WTF KIND OF NOTE ARE YOU TRYING TO ACCENT?");
+            return note;
         }
-    };
-    
-    return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, accentOptions, constraintFunc, insertionFunc);
-};
-
-const addStickingToMeasure = (measure: string[], maxConsecutiveKicks: number) => {
-    const stickingOptions = ['R', 'L'];
-    
-    if (maxConsecutiveKicks > 0) {
-        return measure;
     }
     
-    const constraintFunc = (possibleSequence: string[]) => {
-        return doesNotExceedStrokeCount(possibleSequence, 2, 'R') &&
-            doesNotExceedStrokeCount(possibleSequence, 2, 'L');
-    };
-    
-    const insertionFunc = (note: string, sticking: string) => {
-        if (note.includes('z') || note.includes('f,')) {
-            return `${note}`
-        }
-        return `"${sticking}"${note}`
-    };
-
-    return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, stickingOptions, constraintFunc, insertionFunc)
+    throw Error("Could not find acceptable Accent!");
 };
 
-const generateMeasure = (notesPerMeasure: number, maxConsecutiveKicks: number, longestNoteDuration: number, longestRestDuration: number) => {
-    // Get our available notes. Right now can be a SNARE 'c', a KICK 'f,', or a REST 'z'
-    const availableNotes = ['c'];
-    const availableRests: string[] = [];
-    if (maxConsecutiveKicks > 0) {
-        availableNotes.push('f,');
-    }
-    if (longestRestDuration > 0) {
-        availableRests.push('z');
-    }
-
-    /* 
-    Get our note durations. 1 is 1/16 note, 2 is 1/8 note, etc.
-    omitting notes over a half note for now because I don't want
-    to deal with 2 digit durations
-    */
-    const durations = ['1', '2', '3', '4', '6', '8'];
-    const availableNoteDurations: string[] = [];
-    durations.forEach((duration) => {
-        if (parseInt(duration) <= longestNoteDuration) {
-            availableNoteDurations.push(duration);
-        }
-    });
-
-    const availableRestDurations = [];
-    durations.forEach((duration) => {
-        if (parseInt(duration) <= longestRestDuration) {
-            availableRestDurations.push(duration);
-        }
-    });
-    
-    //combine our note and duration values to get our total possible options
-    const availableNotesAndDurations: string[] = [];
-    availableNotes.forEach((note) => {
-        availableNoteDurations.forEach((duration) => {
-            availableNotesAndDurations.push(`${note}${duration}`)
-        });
-    });
-
-    availableRests.forEach((rest) => {
-        availableNoteDurations.forEach((duration) => {
-            availableNotesAndDurations.push(`${rest}${duration}`)
-        });
-    });
-
-    const constraintFunc = (possibleSequence: string[]) => {
-        // figure out how long the sequence is. Duration always comes after note
-        let sequenceDuration = 0;
-        possibleSequence.forEach((item) => {
-            // @ts-ignore
-            const duration = item.match(/\d/g).join("");
-            sequenceDuration += parseInt(duration);
-        });
-        
-        // we surpassed our allowed duration, we failed our constraint
-        if (sequenceDuration > notesPerMeasure) {
-            return false;
-        }
-        
-        // Do we exceed our kick count?
-        return doesNotExceedStrokeCount(possibleSequence, maxConsecutiveKicks, 'f,');
-    };
-    
-    const terminationFunc = (possibleSequence: string[]) => {
-        // figure out how long the sequence is. Duration always comes after note
-        let sequenceDuration = 0;
-        possibleSequence.forEach((item) => {
-            // @ts-ignore
-            const duration = item.match(/\d/g).join("");
-            sequenceDuration += parseInt(duration);
-        });
-
-        return sequenceDuration === notesPerMeasure
-    };
-    
-    return RandomizerEngine.getRandomCollectionWithConstraint<string>(availableNotesAndDurations, constraintFunc, terminationFunc);
+const shouldIgnoreInShufflingNotes = (note: Note) => {
+    return note.placedByUser;
 };
 
-const doesNotExceedStrokeCount = (measure: string[], maximumNumber: number, strokeType: string) => {
-    let consecutiveStrokes = 0;
-    if (measure.length >= maximumNumber) {
-        for (let i = 1; i <= measure.length; i++) {
-            const note = measure[measure.length - i];
-            const duration = parseInt(note.substr(note.length-1, 1));
-            const isStrokeType = note.includes(strokeType);
-            if (!isStrokeType || duration > 1) {
-                consecutiveStrokes = 0;
-            } else {
-                consecutiveStrokes += 1;
+const generateMeasure = (config: GenerateSheetMusicConfig): Measure => {
+
+    if (!ValidationEngine.configIsValid(config)) {
+        throw new Error("What the hell are you doing?? YOU ARE BURNING THE SHIT OUT OF MY PLANTS!!");
+    }
+
+    const measure = new Measure(config.subdivision);
+
+    addMandatoryNotesToEmptyMeasure(measure, ENoteTypes.snare, config.mandatorySnarePlacements);
+    addMandatoryNotesToEmptyMeasure(measure, ENoteTypes.kick, config.mandatoryKickPlacements);
+    addMandatoryNotesToEmptyMeasure(measure, ENoteTypes.rest, config.mandatoryRestPlacements);
+    
+    let count = 0;
+    if (config.snareNoteCountEnabled) {
+        count = config.snareNoteCount - config.mandatorySnarePlacements.length;
+        addNoteCountToMeasure(measure, config, ENoteTypes.snare, null, null, firstUnsetNoteType, count);
+    }
+    if (config.kickNoteCountEnabled) {
+        addNoteCountToMeasure(measure, config, ENoteTypes.kick, null, null, firstUnsetNoteType, count);
+    }
+    if (config.restNoteCountEnabled) {
+        addNoteCountToMeasure(measure, config, ENoteTypes.rest, null, null, firstUnsetNoteType, count);
+    }
+
+    //shuffle
+    RandomizerEngine.shuffleArray<Note>(measure.notes, shouldIgnoreInShufflingNotes);
+
+    // fill in remaining notes
+    const remainingNotes = measure.notes.filter((note) => {
+        return note.noteType === ENoteTypes.none;
+    });
+
+    remainingNotes.forEach((note) => {
+        const optionsChecked: ENoteTypes[] = [];
+        let acceptableNoteFound = false;
+
+        while (!acceptableNoteFound) {
+            if (optionsChecked.length === 3) {
+                throw new Error("Could Not Find valid Note!!");
             }
 
-            // we surpassed Max kicks, we failed our constraint
-            if (consecutiveStrokes > maximumNumber) {
-                return false;
+            const randomIndex = RandomizerEngine.randomNumberInRange(0, 2);
+            const noteType = randomIndex === 0 ? ENoteTypes.snare : randomIndex === 1 ? ENoteTypes.kick : ENoteTypes.rest;
+            if (!optionsChecked.includes(noteType)) {
+                note.noteType = noteType;
+
+                let maximumNumber = 0;
+                switch (noteType) {
+                    case ENoteTypes.snare:
+                        if (config.snareNoteCountEnabled) {
+                            note.noteType = ENoteTypes.none;
+                            optionsChecked.push(noteType);
+                            continue;
+                        }
+                        maximumNumber = config.maxConsecutiveSnares;
+                        break;
+                    case ENoteTypes.kick:
+                        if (config.kickNoteCountEnabled) {
+                            note.noteType = ENoteTypes.none;
+                            optionsChecked.push(noteType);
+                            continue;
+                        }
+                        maximumNumber = config.maxConsecutiveKicks;
+                        break;
+                    case ENoteTypes.rest:
+                        if (config.restNoteCountEnabled) {
+                            note.noteType = ENoteTypes.none;
+                            optionsChecked.push(noteType);
+                            continue;
+                        }
+                        maximumNumber = config.maxConsecutiveRests;
+                        break;
+                }
+                
+                const noteIsSameNoteType = (note: Note): boolean => {
+                    return note.noteType === noteType;
+                };
+
+                if (!noteVarietyDoesNotExceedConsecutiveCount(measure, maximumNumber, noteIsSameNoteType)) {
+                    note.noteType = ENoteTypes.none;
+                    optionsChecked.push(noteType);
+                } else {
+                    acceptableNoteFound = true;
+                }
             }
         }
+    });
+
+    return measure;
+};
+
+const addMandatoryNotesToEmptyMeasure = (measure: Measure, noteType: ENoteTypes, mandatoryNotes: ENotePlacement[]) => {
+    mandatoryNotes.forEach((placement) => {
+        const index = mapNotePlacementToIndex(placement);
+        const noteAtIndex = measure.notes[index];
+
+        noteAtIndex.placedByUser = true;
+        noteAtIndex.noteType = noteType;
+    });
+};
+
+const addNoteCountToMeasure = (measure: Measure,
+                               config: GenerateSheetMusicConfig,
+                               noteType: ENoteTypes | null, 
+                               accent: EAccents | null,
+                               sticking: EStickings | null, 
+                               getNoteToUpdate: (measure: Measure, config: GenerateSheetMusicConfig) => Note,
+                               count: number) => {
+    for (let i = 0; i < count; i++) {
+        const noteToUpdate = getNoteToUpdate(measure, config);
+        noteToUpdate.noteType = noteType == null ? noteToUpdate.noteType : noteType;
+        noteToUpdate.accent = accent == null ? noteToUpdate.accent : accent;
+        noteToUpdate.sticking = sticking == null ? noteToUpdate.sticking : sticking;
     }
-    return true;
+};
+
+const mapNotePlacementToIndex = (placement: ENotePlacement) => {
+    switch (placement) {
+        case ENotePlacement.one:
+            return 0;
+        case ENotePlacement.oneE:
+            return 1;
+        case ENotePlacement.oneAnd:
+            return 2;
+        case ENotePlacement.oneA:
+            return 3;
+        case ENotePlacement.two:
+            return 4;
+        case ENotePlacement.twoE:
+            return 5;
+        case ENotePlacement.twoAnd:
+            return 6;
+        case ENotePlacement.twoA:
+            return 7;
+        case ENotePlacement.three:
+            return 8;
+        case ENotePlacement.threeE:
+            return 9;
+        case ENotePlacement.threeAnd:
+            return 10;
+        case ENotePlacement.threeA:
+            return 11;
+        case ENotePlacement.four:
+            return 12;
+        case ENotePlacement.fourE:
+            return 13;
+        case ENotePlacement.fourAnd:
+            return 14;
+        case ENotePlacement.fourA:
+            return 15;
+    }
+};
+
+const noteVarietyDoesNotExceedConsecutiveCount = (measure: Measure, maximumNumber: number, isNoteVariety: (note: Note) => boolean) => {
+    let consecutiveCount = 0;
+    let hasNotSurpassedConsecutiveCount = true;
+    measure.notes.forEach((note) => {
+        if (isNoteVariety(note)) {
+            consecutiveCount += 1;
+        } else {
+            consecutiveCount = 0;
+        }
+        
+        if (consecutiveCount > maximumNumber) {
+            hasNotSurpassedConsecutiveCount = false;
+        }
+    });
+    return hasNotSurpassedConsecutiveCount;
 };
 
 export default ExerciseEngine;
