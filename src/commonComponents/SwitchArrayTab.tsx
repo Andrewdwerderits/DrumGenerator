@@ -131,7 +131,7 @@ export default function SwitchArrayTab(props: SwitchArrayTabProps) {
         <Card className={classes.cardRoot}>
             <CardContent>
                 <FormControl className={classes.formControl}>
-                    <InputLabel id="demo-simple-select-label">Age</InputLabel>
+                    <InputLabel id="demo-simple-select-label">Hit Type</InputLabel>
                     <Select
                         labelId="demo-simple-select-label"
                         id="demo-simple-select"

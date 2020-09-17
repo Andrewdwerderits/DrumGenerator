@@ -24,11 +24,12 @@ import {
     InputLabel,
     TextField,
     CardContent,
-    Card, CardActions
+    Card, CardActions, Tooltip
 } from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import { makeStyles, createStyles, Theme } from '@material-ui/core/styles';
 import SwitchArrayTab from "./commonComponents/SwitchArrayTab";
+import ValidationEngine from "./engines/ValidationEngine";
 
 function App() {
     const [savedExercises, setSavedExercises] = useState<Exercise[]>([new Exercise(`X:1\nT:Paradiddles\nM:4/4\nC:Trad.\nK:C\nL:1/16\n|:"R"c"L"c"R"c"R"c "L"c"R"c"L"c"L"c "R"c"L"c"R"c"R"c "L"c"R"c"L"c"L"c:|`), new Exercise(`X:1\nT:Doubles\nM:4/4\nC:Trad.\nK:C\nL:1/16\n|:"R"c"R"c"L"c"L"c "R"c"R"c"L"c"L"c "R"c"R"c"L"c"L"c "R"c"R"c"L"c"L"c:|`)]);
@@ -37,13 +38,14 @@ function App() {
     const [config, setConfig] = useState<GenerateSheetMusicConfig>(new GenerateSheetMusicConfig(new Header(`Super Dope Title ${exercisesGenerated}`),));
 
     const [tabIndex, setTabIndex] = useState(0);
-    
+
     const [consecutiveHitsSelection, setConsecutiveHitsSelection] = useState('kick');
     const [noteCountSelection, setNoteCountSelection] = useState('kick');
     const [mandatoryNotePlacementSelection, setMandatoryNotePlacementSelection] = useState('kick');
     const [stickingSelection, setStickingSelection] = useState('none');
 
     const [measureName, setMeasureName] = useState("Greatest Measure of All Time");
+    const [errorList, setErrorList] = useState<string[]>([]);
 
     useEffect(() => {
         config.header.title = measureName;
@@ -51,6 +53,12 @@ function App() {
         setConfig(newConfig);
     }, [measureName]);
     
+    useEffect(() => {
+        const newErrorList: string[] = [];
+        ValidationEngine.configIsValid(config, newErrorList);
+        setErrorList(newErrorList);
+    }, [config]);
+
     const saveExercise = () => {
         if (currentExercise) {
             setSavedExercises([...savedExercises, currentExercise]);
@@ -59,18 +67,19 @@ function App() {
     };
 
     const generateNewExercise = () => {
-        const newExercise = new Exercise(ExerciseEngine.generateNewSheetMusic(config));
+        const measure = ExerciseEngine.generateNewSheetMusic(config);
+        if (Array.isArray(measure)) {
+            setErrorList(measure);
+            return;
+        }
+        const newExercise = new Exercise(measure);
         setCurrentExercise(newExercise);
-    };
-
-    const mandatoryNotePlacementSelectionChange = (event: any) => {
-        setMandatoryNotePlacementSelection(event.target.value);
     };
 
     const stickingSelectionChange = (event: any) => {
         setStickingSelection(event.target.value);
     };
-    
+
     const measureNameChange = (event: any) => {
         setMeasureName(event.target.value);
     };
@@ -103,6 +112,9 @@ function App() {
             pos: {
                 marginBottom: 12,
             },
+            toolTip: {
+                fontSize: 20,
+            }
         }),
     );
     const classes = useStyles();
@@ -170,7 +182,8 @@ function App() {
                                             engraverParams={{responsive: 'resize'}}
                                             renderParams={{viewportHorizontal: true}}
                                         />
-                                        <Button variant="contained" color="secondary" onClick={deleteCallback}>Delete</Button>
+                                        <Button variant="contained" color="secondary"
+                                                onClick={deleteCallback}>Delete</Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -199,19 +212,23 @@ function App() {
                 </Tabs>
             </AppBar>
             <TabPanel value={tabIndex} index={0}>
-               <RadioButtonArrayTab mode={'consecutive'} selection={consecutiveHitsSelection} setSelection={setConsecutiveHitsSelection} config={config} setConfig={setConfig}/>
+                <RadioButtonArrayTab mode={'consecutive'} selection={consecutiveHitsSelection}
+                                     setSelection={setConsecutiveHitsSelection} config={config} setConfig={setConfig}/>
             </TabPanel>
             <TabPanel value={tabIndex} index={1}>
-                <RadioButtonArrayTab mode={'noteCount'} selection={noteCountSelection} setSelection={setNoteCountSelection} config={config} setConfig={setConfig}/>
+                <RadioButtonArrayTab mode={'noteCount'} selection={noteCountSelection}
+                                     setSelection={setNoteCountSelection} config={config} setConfig={setConfig}/>
             </TabPanel>
             <TabPanel value={tabIndex} index={2}>
-                <SwitchArrayTab selection={mandatoryNotePlacementSelection} setSelection={setMandatoryNotePlacementSelection} config={config} setConfig={setConfig}/>
+                <SwitchArrayTab selection={mandatoryNotePlacementSelection}
+                                setSelection={setMandatoryNotePlacementSelection} config={config}
+                                setConfig={setConfig}/>
             </TabPanel>
             <TabPanel value={tabIndex} index={3}>
                 <Card className={classes.cardRoot}>
                     <CardContent>
                         <FormControl className={classes.formControl}>
-                            <InputLabel id="demo-simple-select-label">Age</InputLabel>
+                            <InputLabel id="demo-simple-select-label">Sticking Pattern</InputLabel>
                             <Select
                                 labelId="demo-simple-select-label"
                                 id="demo-simple-select"
@@ -231,9 +248,15 @@ function App() {
                 <CardContent>
                     <FormControl component="fieldset">
                         <FormLabel component="legend">Generation Controls</FormLabel>
-                        <TextField value={measureName} onChange={measureNameChange} id="standard-basic" label="Pattern Name"/>
+                        <TextField value={measureName} onChange={measureNameChange} id="standard-basic"
+                                   label="Pattern Name"/>
                         <CardActions>
-                            <Button variant="contained" onClick={generateNewExercise}>Generate Measure</Button>
+                            <Tooltip title={<span style={{ fontSize: '18px'}}>{errorList}</span>}>
+                                <span style={{ cursor: 'not-allowed' }}>
+                                <Button disabled={errorList.length > 0} variant="contained"
+                                        onClick={generateNewExercise}>Generate Measure</Button>
+                                </span>
+                            </Tooltip>
                             <Button variant="contained" color="primary" onClick={saveExercise}>SAVE</Button>
                         </CardActions>
                     </FormControl>

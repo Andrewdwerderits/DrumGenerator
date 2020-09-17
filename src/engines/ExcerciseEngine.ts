@@ -12,12 +12,19 @@ import EAccents from "../Enums/EAccents";
 class ExerciseEngine {
     // Main entry point All configurations should be passed in here
     public static generateNewSheetMusic = (config: GenerateSheetMusicConfig) => {
-        const header = generateHeaderString(config.header);
-        const measure = generateMeasure(config);
-        // const measureWithSticking = addStickingToMeasure(measure, config.maxConsecutiveKicks);
-        addAccentsToMeasure(measure, config);
-        const formattedResult = format(measure);
-        return `${header}${formattedResult}`
+        try {
+            const header = generateHeaderString(config.header);
+            const measure = generateMeasure(config);
+            if (Array.isArray(measure)) {
+                return measure;
+            }
+            // const measureWithSticking = addStickingToMeasure(measure, config.maxConsecutiveKicks);
+            addAccentsToMeasure(measure, config);
+            const formattedResult = format(measure);
+            return `${header}${formattedResult}`
+        } catch (e) {
+            return e.message;
+        }
     };
 }
 
@@ -54,37 +61,6 @@ const format = (measure: Measure) => {
     return `|:${resultString}:|`
 };
 //
-// const addAccentsToMeasure = (measure: string[], accentCount: number) => {
-//     const accentOptions = ['', '!>!'];
-//    
-//     if (accentCount === 0) {
-//         return measure;
-//     } 
-//    
-//     const constraintFunc = (possibleSequence: string[]) => {
-//         let passesConstraint = true;
-//         possibleSequence.forEach((item) => {
-//             if (item.includes('!>!') && (item.includes('f,') || item.includes('z'))) {
-//                 passesConstraint = false;
-//             }
-//         });
-//         return passesConstraint;
-//     };
-//    
-//     const insertionFunc = (note: string, accent: string) => {
-//         const splitNote = note.split("\"");
-//         if (splitNote.length === 1) {
-//             return `${accent}${splitNote[0]}`
-//         } else if (splitNote.length === 3) {
-//             return `"${splitNote[1]}"${accent}${splitNote[2]}`;
-//         } else {
-//             throw new Error ("WTF KIND OF NOTE ARE YOU TRYING TO ACCENT?");
-//         }
-//     };
-//    
-//     return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, accentOptions, constraintFunc, insertionFunc);
-// };
-//
 // const addStickingToMeasure = (measure: string[], maxConsecutiveKicks: number) => {
 //     const stickingOptions = ['R', 'L'];
 //    
@@ -105,6 +81,10 @@ const format = (measure: Measure) => {
 //     };
 //
 //     return RandomizerEngine.addRandomPropertyToRandomCollection<string, string>(measure, stickingOptions, constraintFunc, insertionFunc)
+// };
+
+// const addStickingToMeasure = (measure: Measure, config: GenerateSheetMusicConfig): Measure => {
+//    
 // };
 
 const addAccentsToMeasure = (measure: Measure, config: GenerateSheetMusicConfig): Measure => {
@@ -139,7 +119,7 @@ const firstUnsetNoteType = (measure: Measure, config: GenerateSheetMusicConfig):
     });
     
     if (!result) {
-        throw Error("WELKJRWELJ");
+        throw Error("No Unset Notes. Generation failure!");
     }
     return result;
 };
@@ -150,7 +130,7 @@ const firstUnsetStickings = (measure: Measure): Note => {
     });
 
     if (!result) {
-        throw Error("WELKJRWELJ");
+        throw Error("No Unset Stickings. Generation failure!");
     }
     return result;
 };
@@ -185,17 +165,18 @@ const randomValidUnsetAccent = (measure: Measure, config: GenerateSheetMusicConf
         }
     }
     
-    throw Error("Could not find acceptable Accent!");
+    throw Error("No place to put your accent. Generation failure!");
 };
 
 const shouldIgnoreInShufflingNotes = (note: Note) => {
     return note.placedByUser;
 };
 
-const generateMeasure = (config: GenerateSheetMusicConfig): Measure => {
+const generateMeasure = (config: GenerateSheetMusicConfig): Measure | string[] => {
 
-    if (!ValidationEngine.configIsValid(config)) {
-        throw new Error("What the hell are you doing?? YOU ARE BURNING THE SHIT OUT OF MY PLANTS!!");
+    const errorList: string[] = [];
+    if (!ValidationEngine.configIsValid(config, errorList)) {
+        return errorList;
     }
 
     const measure = new Measure(config.subdivision);
@@ -210,9 +191,11 @@ const generateMeasure = (config: GenerateSheetMusicConfig): Measure => {
         addNoteCountToMeasure(measure, config, ENoteTypes.snare, null, null, firstUnsetNoteType, count);
     }
     if (config.kickNoteCountEnabled) {
+        count = config.kickNoteCount - config.mandatoryKickPlacements.length;
         addNoteCountToMeasure(measure, config, ENoteTypes.kick, null, null, firstUnsetNoteType, count);
     }
     if (config.restNoteCountEnabled) {
+        count = config.restNoteCount - config.mandatoryRestPlacements.length;
         addNoteCountToMeasure(measure, config, ENoteTypes.rest, null, null, firstUnsetNoteType, count);
     }
 
@@ -230,7 +213,7 @@ const generateMeasure = (config: GenerateSheetMusicConfig): Measure => {
 
         while (!acceptableNoteFound) {
             if (optionsChecked.length === 3) {
-                throw new Error("Could Not Find valid Note!!");
+                throw new Error("No where to place note. Generation failure!");
             }
 
             const randomIndex = RandomizerEngine.randomNumberInRange(0, 2);
