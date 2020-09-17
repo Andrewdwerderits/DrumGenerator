@@ -1,0 +1,26 @@
+{
+  "files": {
+    "main.css": "/DrumGenerator/static/css/main.d06c1299.chunk.css",
+    "main.js": "/DrumGenerator/static/js/main.62acaafd.chunk.js",
+    "main.js.map": "/DrumGenerator/static/js/main.62acaafd.chunk.js.map",
+    "runtime-main.js": "/DrumGenerator/static/js/runtime-main.d5e068ec.js",
+    "runtime-main.js.map": "/DrumGenerator/static/js/runtime-main.d5e068ec.js.map",
+    "static/css/2.32ad174d.chunk.css": "/DrumGenerator/static/css/2.32ad174d.chunk.css",
+    "static/js/2.5583064b.chunk.js": "/DrumGenerator/static/js/2.5583064b.chunk.js",
+    "static/js/2.5583064b.chunk.js.map": "/DrumGenerator/static/js/2.5583064b.chunk.js.map",
+    "index.html": "/DrumGenerator/index.html",
+    "precache-manifest.b943f368490297e06866464b1e78105d.js": "/DrumGenerator/precache-manifest.b943f368490297e06866464b1e78105d.js",
+    "service-worker.js": "/DrumGenerator/service-worker.js",
+    "static/css/2.32ad174d.chunk.css.map": "/DrumGenerator/static/css/2.32ad174d.chunk.css.map",
+    "static/css/main.d06c1299.chunk.css.map": "/DrumGenerator/static/css/main.d06c1299.chunk.css.map",
+    "static/js/2.5583064b.chunk.js.LICENSE.txt": "/DrumGenerator/static/js/2.5583064b.chunk.js.LICENSE.txt",
+    "static/media/font-awesome.min.css": "/DrumGenerator/static/media/fontawesome-webfont.fee66e71.woff"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.d5e068ec.js",
+    "static/css/2.32ad174d.chunk.css",
+    "static/js/2.5583064b.chunk.js",
+    "static/css/main.d06c1299.chunk.css",
+    "static/js/main.62acaafd.chunk.js"
+  ]
+}
